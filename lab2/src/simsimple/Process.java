@@ -1,9 +1,6 @@
 package simsimple;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.Deque;
-import java.util.Queue;
+import java.util.*;
 
 public class Process extends Element {
 
@@ -12,10 +9,15 @@ public class Process extends Element {
 
     private double meanBusy;
 
-    private int channel_max;
+    private final int channel_max;
     private int channel_current;
 
+    private ArrayList<Element> nextElements;
+    private ArrayList<Double> nextElementProbabilities;
+
     private ArrayList<Double> tNexts;
+
+    private final Random rng = new Random();
 
     public Process(double delay) {
         this(delay, 1);
@@ -32,6 +34,8 @@ public class Process extends Element {
         meanBusy = 0.0;
         channel_max = channels_max;
         channel_current = 0;
+        nextElementProbabilities = new ArrayList<>();
+        nextElements = new ArrayList<>();
     }
 
     @Override
@@ -112,6 +116,40 @@ public class Process extends Element {
 
     public void removeTnext() {
         tNexts.remove(getTnext());
+    }
+
+    @Override
+    public void setNextElement(Element nextElement) {
+        setNextElement(nextElement, 1);
+    }
+
+    public void setNextElement(Element nextElement, double probability) {
+        nextElements.add(nextElement);
+        nextElementProbabilities.add(probability);
+    }
+
+    @Override
+    public Element getNextElement() {
+        var sumOfProbs = nextElementProbabilities.stream().reduce(Double::sum);
+        if (sumOfProbs.isEmpty()) {
+            return null;
+        }
+        if (sumOfProbs.get() > 1) {
+            throw new RuntimeException("Probabilities not matching");
+        }
+        if (nextElements.size() == 1) {
+            return nextElements.get(0);
+        }
+
+        var rand = rng.nextDouble();
+        var acc = 0.0;
+        for (int i = 0; i < nextElementProbabilities.size(); i++) {
+            acc += nextElementProbabilities.get(i);
+            if (rand <= acc) {
+                return nextElements.get(i);
+            }
+        }
+        return null;
     }
 
     public int getFailure() {

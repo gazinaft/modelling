@@ -203,3 +203,36 @@ q/f значить queue length/failure probability
         ......................
 ```
 ## 6. Вихід у 2+ наступних блоки
+Я модифікував метод `getNextElement` у класі `Process.java`
+### `Process.java`
+```java
+    @Override
+    public Element getNextElement() {
+        var sumOfProbs = nextElementProbabilities.stream().reduce(Double::sum);
+        if (sumOfProbs.isEmpty()) {
+            return null;
+        }
+        if (sumOfProbs.get() > 1) {
+            throw new RuntimeException("Probabilities not matching");
+        }
+        if (nextElements.size() == 1) {
+            return nextElements.get(0);
+        }
+
+        var rand = rng.nextDouble();
+        var acc = 0.0;
+        for (int i = 0; i < nextElementProbabilities.size(); i++) {
+            acc += nextElementProbabilities.get(i);
+            if (rand <= acc) {
+                return nextElements.get(i);
+            }
+        }
+        return null;
+    }
+```
+
+# Висновок
+Ми дослідили системи масового обслуговування, методи їх роботи та збір статистики.
+За допомогою них ми можемо моделювати системи реального світу достатньо точно.
+І лише за допомогою 2х елементів: продюсера та СМО ми можемо достатньо гнучко
+налаштувати систему

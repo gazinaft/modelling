@@ -7,8 +7,8 @@ public class SimModel {
 
     public static void main(String[] args) {
         Create c = new Create(0.5);
-        Process p = new Process(1.0);
-        Process p2 = new Process(2.0);
+        Process p = new Process(1.0, 2);
+        Process p2 = new Process(2.0, 4);
         Process p3 = new Process(1.0);
 
         System.out.println("id0 = " + c.getId() + "   id1=" + p.getId());

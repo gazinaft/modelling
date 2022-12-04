@@ -1,5 +1,8 @@
 package simsimple;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Deque;
 import java.util.Queue;
 
 public class Process extends Element {
@@ -12,7 +15,7 @@ public class Process extends Element {
     private int channel_max;
     private int channel_current;
 
-    private Queue<Double> tNexts;
+    private ArrayList<Double> tNexts;
 
     public Process(double delay) {
         this(delay, 1);
@@ -22,6 +25,7 @@ public class Process extends Element {
         super(delay);
         setTcurr(0.0);
         setTnext(Double.MAX_VALUE);
+        tNexts = new ArrayList<>();
         queue = 0;
         maxqueue = Integer.MAX_VALUE;
         meanQueue = 0.0;
@@ -32,11 +36,9 @@ public class Process extends Element {
 
     @Override
     public void inAct() {
-        if (super.getState() == 0) {
-            super.setState(1);
+        if (inChannel()) {
             var delay = super.getDelay();
-            meanBusy += getState() * delay;
-            super.setTnext(super.getTcurr() + delay);
+            putMinimal(super.getTcurr() + delay);
         } else {
             if (getQueue() < getMaxqueue()) {
                 setQueue(getQueue() + 1);
@@ -49,8 +51,9 @@ public class Process extends Element {
     @Override
     public void outAct() {
         super.outAct();
-        super.setTnext(Double.MAX_VALUE);
-        super.setState(0);
+        removeTnext();
+        outChannel();
+
         var nextEl = getNextElement();
         if (nextEl != null) {
             nextEl.inAct();
@@ -58,15 +61,17 @@ public class Process extends Element {
 
         if (getQueue() > 0) {
             setQueue(getQueue() - 1);
-            super.setState(1);
-            super.setTnext(super.getTcurr() + super.getDelay());
+            inChannel();
+            var delay= super.getDelay();
+            putMinimal(super.getTcurr() + delay);
         }
     }
 
-//    @Override
-//    public int getState() {
-//        return channel_current != 0 ? 1 : 0;
-//    }
+
+    @Override
+    public int getState() {
+        return channel_current != 0 ? 1 : 0;
+    }
 
     private boolean inChannel() {
         if (channel_current == channel_max) {
@@ -88,7 +93,25 @@ public class Process extends Element {
             return true;
         }
         channel_current--;
+        super.setState(1);
         return false;
+    }
+
+    public void putMinimal(double next) {
+        tNexts.removeIf(x -> x < getTcurr());
+
+        tNexts.add(next);
+        tNexts.sort(Comparator.naturalOrder());
+    }
+
+    @Override
+    public double getTnext() {
+        if (tNexts.size() == 0) return Double.MAX_VALUE;
+        return tNexts.get(0);
+    }
+
+    public void removeTnext() {
+        tNexts.remove(getTnext());
     }
 
     public int getFailure() {
@@ -123,6 +146,7 @@ public class Process extends Element {
     @Override
     public void doStatistics(double delta) {
         meanQueue = getMeanQueue() + queue * delta;
+        meanBusy += getState() * delta;
     }
 
     public double getMeanQueue() {

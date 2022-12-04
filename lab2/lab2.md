@@ -27,7 +27,7 @@
 <img src="/run/media/gazinaft/d/7 sem/modelling/lab2/scheme.png">
 
 5. Модифікувати клас `PROCESS`, щоб можна було його використовувати для моделювання процесу обслуговування кількома ідентичними пристроями. 20 балів.
-6. Модифікувати клас `PROCESS`, щоб можна було організовувати вихід в два і більше наступних  блоків, в тому числі з поверненням у попередні блоки. 30 балів.
+6. Модифікувати клас `PROCESS`, щоб можна було організовувати вихід в два і більше наступних блоків, в тому числі з поверненням у попередні блоки. 30 балів.
 
 # Виконання
 
@@ -37,37 +37,9 @@
 Треба було трохи модифікувати код. Додати лічильник занятості, сумувати зайнятість та потім ділити на загальний час
 ### ```Process.java```
 ```java
-    @Override
-    public void inAct() {
-        if (super.getState() == 0) {
-            super.setState(1);
-            var delay = super.getDelay();
-            meanBusy += getState() * delay;
-            super.setTnext(super.getTcurr() + delay);
-        } else {
-            if (getQueue() < getMaxqueue()) {
-                setQueue(getQueue() + 1);
-            } else {
-                failure++;
-            }
-        }
-    }
-```
-### ```Model.java```
-```java
-    public void printResult() {
-        System.out.println("\n-------------RESULTS-------------");
-        for (Element e : list) {
-            e.printResult();
-            if (e instanceof Process) {
-                Process p = (Process) e;
-                System.out.println("mean length of queue = " +
-                        p.getMeanQueue() / tcurr
-                        + "\nfailure probability  = " +
-                        p.getFailure() / (double) p.getQuantity() +
-                        "\nmean business = " + p.getMeanBusy() / tcurr);
-            }
-        }
+    public void doStatistics(double delta) {
+        meanQueue = getMeanQueue() + queue * delta;
+        meanBusy += getState() * delta;
     }
 ```
 ## 3. Створити модель за схемою
@@ -83,34 +55,34 @@
 ### `SimModel.java`
 ```java
 Create c = new Create(2.0);
-        Process p = new Process(1.0);
-        Process p2 = new Process(1.0);
-        Process p3 = new Process(1.0);
+Process p = new Process(1.0);
+Process p2 = new Process(1.0);
+Process p3 = new Process(1.0);
 
-        System.out.println("id0 = " + c.getId() + "   id1=" + p.getId());
-        c.setNextElement(p);
-        p.setNextElement(p2);
-        p2.setNextElement(p3);
+System.out.println("id0 = " + c.getId() + "   id1=" + p.getId());
+c.setNextElement(p);
+p.setNextElement(p2);
+p2.setNextElement(p3);
 
-        p.setMaxqueue(5);
-        p2.setMaxqueue(5);
-        p3.setMaxqueue(5);
+p.setMaxqueue(5);
+p2.setMaxqueue(5);
+p3.setMaxqueue(5);
 
-        c.setName("CREATOR");
-        p.setName("PROCESSOR");
-        p2.setName("PROCESSOR2");
-        p3.setName("PROCESSOR3");
+c.setName("CREATOR");
+p.setName("PROCESSOR");
+p2.setName("PROCESSOR2");
+p3.setName("PROCESSOR3");
 
-        c.setDistribution("exp");
-        p.setDistribution("exp");
-        p2.setDistribution("exp");
-        p3.setDistribution("exp");
+c.setDistribution("exp");
+p.setDistribution("exp");
+p2.setDistribution("exp");
+p3.setDistribution("exp");
 
-        ArrayList<Element> list = new ArrayList<>();
-        list.add(c);
-        list.add(p);
-        list.add(p2);
-        list.add(p3);
+ArrayList<Element> list = new ArrayList<>();
+list.add(c);
+list.add(p);
+list.add(p2);
+list.add(p3);
 ```
 <img src="/run/media/gazinaft/d/7 sem/modelling/lab2/4-result.png">
 
@@ -128,3 +100,106 @@ q/f значить queue length/failure probability
 ### Модель працює коректно, результати зходяться з очікуваними
 
 ## 5. Багатоканальне обслуговування
+Для цього я додав підрахунок зайнятих каналів та список з часом завершення
+обробки різних каналів.
+### `Process.java`
+```java
+    ..................
+
+    public Process(double delay, int channels_max) {
+        super(delay);
+        setTcurr(0.0);
+        setTnext(Double.MAX_VALUE);
+        tNexts = new ArrayList<>();
+        queue = 0;
+        maxqueue = Integer.MAX_VALUE;
+        meanQueue = 0.0;
+        meanBusy = 0.0;
+        channel_max = channels_max;
+        channel_current = 0;
+    }
+
+    @Override
+    public void inAct() {
+        if (inChannel()) {
+            var delay = super.getDelay();
+            meanBusy += getState() * delay;
+            putMinimal(super.getTcurr() + delay);
+        } else {
+            if (getQueue() < getMaxqueue()) {
+            setQueue(getQueue() + 1);
+            } else {
+                failure++;
+            }
+        }
+    }
+
+    @Override
+    public void outAct() {
+        super.outAct();
+        removeTnext();
+        outChannel();
+
+        var nextEl = getNextElement();
+        if (nextEl != null) {
+            nextEl.inAct();
+        }
+
+        if (getQueue() > 0) {
+            setQueue(getQueue() - 1);
+            inChannel();
+            var delay= super.getDelay();
+            meanBusy += delay * getState();
+            putMinimal(super.getTcurr() + delay);
+        }
+    }
+
+
+    @Override
+    public int getState() {
+        return channel_current != 0 ? 1 : 0;
+    }
+
+    private boolean inChannel() {
+        if (channel_current == channel_max) {
+            return false;
+        }
+        channel_current++;
+        super.setState(1);
+        return true;
+    }
+
+    private boolean outChannel() {
+        if (channel_current < 1) {
+            super.setState(0);
+            return true;
+        }
+        if (channel_current == 1) {
+            channel_current--;
+            super.setState(0);
+            return true;
+        }
+        channel_current--;
+        super.setState(1);
+        return false;
+    }
+
+    public void putMinimal(double next) {
+        tNexts.removeIf(x -> x < getTcurr());
+
+        tNexts.add(next);
+        tNexts.sort(Comparator.naturalOrder());
+    }
+
+    @Override
+    public double getTnext() {
+        if (tNexts.size() == 0) return Double.MAX_VALUE;
+        return tNexts.get(0);
+    }
+
+    public void removeTnext() {
+        tNexts.remove(getTnext());
+    }
+        ......................
+```
+## 6. Вихід у 2+ наступних блоки

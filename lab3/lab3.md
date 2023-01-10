@@ -106,10 +106,64 @@
 ## 1. Універсальний алгоритм імітації
 Виконано у минулій лабораторній роботі
 ## 2. Банк
+Для реалізації банку треба було трохи модифікувати Process, для
+зміни черг і підрахунку потрібної статистики.
+### `SwichingProcess.java`
+```java
+package bank;
 
+import simsimple.Process;
+
+public class SwitchingProcess extends Process {
+
+    public int priority;
+    private int switchedCount;
+    public double sum_time_to_go;
+    private SwitchingProcess other;
+
+    public SwitchingProcess(double delay, int channels_max, int priority) {
+        super(delay, channels_max);
+        this.priority = priority;
+
+        switchedCount = 0;
+    }
+
+    public void initPair(SwitchingProcess other) {
+        this.other = other;
+        other.other = this;
+    }
+
+    @Override
+    public void putMinimal(double next) {
+        sum_time_to_go += next - getTcurr();
+        super.putMinimal(next);
+    }
+
+    @Override
+    public void outAct() {
+        super.outAct();
+        switchFromAnother();
+    }
+
+    // use when process done with a car
+    public void switchFromAnother() {
+        if (other.queue - this.queue >= 2) {
+            this.queue++;
+            other.queue--;
+            switchedCount++;
+        }
+    }
+
+    @Override
+    public void printInfo() {
+        super.printInfo();
+        System.out.println("Switched to this line = " + switchedCount);
+    }
+}
+
+```
 
 # Висновок
-Ми дослідили системи масового обслуговування, методи їх роботи та збір статистики.
-За допомогою них ми можемо моделювати системи реального світу достатньо точно.
-І лише за допомогою 2х елементів: продюсера та СМО ми можемо достатньо гнучко
-налаштувати систему
+Ми реалізували універсальний алгоритм імітації та на практиці закріпили вміння
+проектувати мережі масового обслуговування і з мінімальними змінами вирішувати
+поставлену задачу.
